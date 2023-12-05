@@ -9,6 +9,7 @@ import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Map;
 
 /**
  * AbstractRoutingDataSource 用于在特定条件选择不同的数据源数据源的动态切换
@@ -28,22 +29,51 @@ public class DynamicDataSource extends AbstractRoutingDataSource {
      */
     @Override
     public Connection getConnection() throws SQLException {
-        CustomConnection conn = new CustomConnection(super.getConnection());
-        if (TransactionContext.txIsOpen()) {
+        CustomConnection conn = null;
+        if(TransactionContext.txIsOpen()) {
+            // 查询指定数据源是否已经存在连接, 若存在, 返回缓存的连接对象
+            // 若不存在, 生成新的连接对象, 并缓存到 map 中
+            Object dsKey = determineCurrentLookupKey();
+            Map<Object, Connection> connMap = ConnectionContext.getConnMap();
+            if (connMap.containsKey(dsKey)) {
+                return connMap.get(dsKey);
+            }
+
+            conn = new CustomConnection(super.getConnection());
             // 设置自动提交关闭, 并且将添加到 连接集合中
             conn.setAutoCommit(false);
             ConnectionContext.addConnection(conn);
+            // 缓存到 Map
+            connMap.put(dsKey, conn);
+        } else {
+            conn = new CustomConnection(super.getConnection());
         }
+
         return conn;
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        CustomConnection conn = new CustomConnection(super.getConnection(username, password));
-        if (TransactionContext.txIsOpen()) {
+        CustomConnection conn = null;
+        if(TransactionContext.txIsOpen()) {
+            // 查询指定数据源是否已经存在连接, 若存在, 返回缓存的连接对象
+            // 若不存在, 生成新的连接对象, 并缓存到 map 中
+            Object dsKey = determineCurrentLookupKey();
+            Map<Object, Connection> connMap = ConnectionContext.getConnMap();
+            if (connMap.containsKey(dsKey)) {
+                return connMap.get(dsKey);
+            }
+
+            conn = new CustomConnection(super.getConnection(username, password));
+            // 设置自动提交关闭, 并且将添加到 连接集合中
             conn.setAutoCommit(false);
             ConnectionContext.addConnection(conn);
+            // 缓存到 Map 中
+            connMap.put(dsKey, conn);
+        } else {
+            conn = new CustomConnection(super.getConnection(username, password));
         }
+
         return conn;
     }
 

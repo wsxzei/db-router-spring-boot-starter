@@ -37,7 +37,7 @@ public class MultiDSTransactionJoinPoint {
         } catch (Throwable e) {
             // 回滚事务
             for(CustomConnection conn: ConnectionContext.getConnectionList()) {
-                conn.rollback();
+                conn.rollbackMultiTx();
                 conn.closeMultiTx();
             }
             logger.info("跨连接事务回滚成功!");

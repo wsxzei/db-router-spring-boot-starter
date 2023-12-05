@@ -46,6 +46,9 @@ public class CustomConnection implements Connection {
         conn.commit();
     }
 
+    public void rollbackMultiTx() throws SQLException {
+        conn.rollback();
+    }
     @Override
     public void commit() throws SQLException {
         // 未开启多连接事务, 不拦截提交操作
@@ -56,7 +59,9 @@ public class CustomConnection implements Connection {
 
     @Override
     public void rollback() throws SQLException {
-        conn.rollback();
+        if(!TransactionContext.txIsOpen()) {
+            conn.rollback();
+        }
     }
 
     @Override
