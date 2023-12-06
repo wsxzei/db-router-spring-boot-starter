@@ -1,9 +1,12 @@
 package cn.wzz.middleware.db.router.aop;
 
 import cn.wzz.middleware.db.router.DBRouterConfig;
+import cn.wzz.middleware.db.router.RouterStrategyEnum;
 import cn.wzz.middleware.db.router.annotation.DBRouter;
 import cn.wzz.middleware.db.router.annotation.RouterKey;
+import cn.wzz.middleware.db.router.annotation.RouterStrategy;
 import cn.wzz.middleware.db.router.strategy.IDBRouterStrategy;
+import cn.wzz.middleware.db.router.strategy.algorithm.impl.DBRouterStrategyAlgorithm;
 import cn.wzz.middleware.db.router.util.StringUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -14,20 +17,21 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.util.Map;
 
 @Aspect
 public class DBRouterJoinPoint {
 
     private DBRouterConfig dbRouterConfig;
 
-    private IDBRouterStrategy dbRouterStrategy;
+    private Map<Enum<RouterStrategyEnum>, IDBRouterStrategy> routerStrategyMap;
 
     private TransactionTemplate transactionTemplate;
 
 
-    public DBRouterJoinPoint(DBRouterConfig dbRouterConfig, IDBRouterStrategy dbRouterStrategy, TransactionTemplate transactionTemplate) {
+    public DBRouterJoinPoint(DBRouterConfig dbRouterConfig, Map<Enum<RouterStrategyEnum>, IDBRouterStrategy> routerStrategyMap, TransactionTemplate transactionTemplate) {
         this.dbRouterConfig = dbRouterConfig;
-        this.dbRouterStrategy = dbRouterStrategy;
+        this.routerStrategyMap = routerStrategyMap;
         this.transactionTemplate = transactionTemplate;
     }
 
@@ -77,9 +81,24 @@ public class DBRouterJoinPoint {
             }
         }
 
-        // 3. 通过路由字段计算 dbIdx 和 tbIdx
-        String routingKey = String.valueOf(fieldValue);
-        dbRouterStrategy.dbRouter(routingKey);
+        // 3. 根据 fieldValue 和路由策略, 计算得到 dbIdx 和 tbIdx
+        boolean customizeSharding = false;
+        String algorithmClass = "";
+        RouterStrategy routerStrategy = getRouterStrategy(joinPoint);
+        if(routerStrategy != null && routerStrategy.strategy() == RouterStrategyEnum.SHARDING_ALGORITHM) {
+            customizeSharding = true;
+            algorithmClass = routerStrategy.algorithmClass();
+        }
+
+        IDBRouterStrategy dbRouterStrategy = null;
+        if(customizeSharding && !StringUtils.isEmpty(algorithmClass)) {
+            dbRouterStrategy =  routerStrategyMap.get(RouterStrategyEnum.SHARDING_ALGORITHM);
+            ((DBRouterStrategyAlgorithm) dbRouterStrategy).setAlgorithmClassName(algorithmClass);
+        } else {
+            // 扰动哈希计算路由键
+            dbRouterStrategy = routerStrategyMap.get(RouterStrategyEnum.HASH);
+        }
+        dbRouterStrategy.dbRouter(fieldValue);
 
         try {
             return joinPoint.proceed();
@@ -116,5 +135,19 @@ public class DBRouterJoinPoint {
         return null;
     }
 
+
+    private RouterStrategy getRouterStrategy(ProceedingJoinPoint joinPoint) {
+        // getThis 获取代理对象, getTarget 获取被代理的对象
+        Class<?> proxy = joinPoint.getThis().getClass();
+        Class<?>[] proxyInterfaces = proxy.getInterfaces();
+
+        for(Class<?> inf: proxyInterfaces) {
+            RouterStrategy routerStrategy = inf.getAnnotation(RouterStrategy.class);
+            if(routerStrategy != null) {
+                return routerStrategy;
+            }
+        }
+        return null;
+    }
 
 }

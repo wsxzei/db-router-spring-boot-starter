@@ -1,12 +1,15 @@
 package cn.wzz.middleware.db.router.config;
 
 import cn.wzz.middleware.db.router.DBRouterConfig;
+import cn.wzz.middleware.db.router.RouterStrategyEnum;
 import cn.wzz.middleware.db.router.aop.DBRouterJoinPoint;
 import cn.wzz.middleware.db.router.aop.MultiDSTransactionJoinPoint;
+import cn.wzz.middleware.db.router.context.DBContextHolder;
 import cn.wzz.middleware.db.router.dynamic.DynamicDataSource;
 import cn.wzz.middleware.db.router.dynamic.DynamicMybatisPlugin;
 import cn.wzz.middleware.db.router.strategy.IDBRouterStrategy;
-import cn.wzz.middleware.db.router.strategy.impl.DBRouterStrategyHash;
+import cn.wzz.middleware.db.router.strategy.algorithm.impl.DBRouterStrategyAlgorithm;
+import cn.wzz.middleware.db.router.strategy.hash.impl.DBRouterStrategyHash;
 import cn.wzz.middleware.db.router.util.PropertyUtil;
 import cn.wzz.middleware.db.router.util.StringUtils;
 import org.apache.ibatis.plugin.Interceptor;
@@ -49,6 +52,8 @@ public class DataSourceAutoConfig implements EnvironmentAware {
         dbCount = (int) map.get("dbCount");
         tbCount = (int) map.get("tbCount");
 
+        DBContextHolder.setDbCount(dbCount);
+        DBContextHolder.setTbCount(tbCount);
         // 获取数据源名称列表 eg: db01,db02
         String dbListStr = (String) map.get("list");
         String[] dbList = dbListStr.split(",");
@@ -134,13 +139,29 @@ public class DataSourceAutoConfig implements EnvironmentAware {
     }
 
     @Bean
-    public IDBRouterStrategy dbRouterStrategy(DBRouterConfig dbRouterConfig) {
+    public DBRouterStrategyHash dbRouterStrategyHash(DBRouterConfig dbRouterConfig) {
         return new DBRouterStrategyHash(dbRouterConfig);
     }
 
     @Bean
-    public DBRouterJoinPoint dbRouterJoinPoint(DBRouterConfig dbRouterConfig, IDBRouterStrategy dbRouterStrategy, TransactionTemplate transactionTemplate) {
-        return new DBRouterJoinPoint(dbRouterConfig, dbRouterStrategy, transactionTemplate);
+    public DBRouterStrategyAlgorithm dbRouterStrategyAlgorithm() {
+        return new DBRouterStrategyAlgorithm();
+    }
+
+    @Bean
+    public Map<Enum<RouterStrategyEnum>, IDBRouterStrategy> routerStrategyMap(DBRouterStrategyHash hash, DBRouterStrategyAlgorithm algorithm) {
+        Map<Enum<RouterStrategyEnum>, IDBRouterStrategy> routerStrategyMap = new HashMap<>();
+        routerStrategyMap.put(RouterStrategyEnum.HASH, hash);
+        routerStrategyMap.put(RouterStrategyEnum.SHARDING_ALGORITHM, algorithm);
+        return routerStrategyMap;
+    }
+
+    @Bean
+    public DBRouterJoinPoint dbRouterJoinPoint(DBRouterConfig dbRouterConfig,
+                                               Map<Enum<RouterStrategyEnum>, IDBRouterStrategy> routerStrategyMap,
+                                               TransactionTemplate transactionTemplate) {
+
+        return new DBRouterJoinPoint(dbRouterConfig, routerStrategyMap, transactionTemplate);
     }
 
     @Bean

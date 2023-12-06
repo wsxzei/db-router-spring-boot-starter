@@ -1,4 +1,4 @@
-package cn.wzz.middleware.db.router.strategy.impl;
+package cn.wzz.middleware.db.router.strategy.hash.impl;
 
 import cn.wzz.middleware.db.router.context.DBContextHolder;
 import cn.wzz.middleware.db.router.DBRouterConfig;
@@ -17,7 +17,7 @@ public class DBRouterStrategyHash implements IDBRouterStrategy {
     }
 
     @Override
-    public void dbRouter(String routingKey) {
+    public void dbRouter(Object routingKey) {
         // tbCount 为分表的总数目, 需要保证 tbCount 为 2 的幂次
         int tbCount = dbRouterConfig.getDbCount() * dbRouterConfig.getTbCount();
 

@@ -1,6 +1,11 @@
 package cn.wzz.middleware.db.router.context;
 
 public class DBContextHolder {
+
+    private static Integer dbCount;
+
+    private static Integer tbCount;
+
     private static final ThreadLocal<String> dbKey = new ThreadLocal<String>();
     private static final ThreadLocal<String> tbKey = new ThreadLocal<String>();
 
@@ -28,4 +33,20 @@ public class DBContextHolder {
         tbKey.remove();
     }
 
+
+    public static Integer getDbCount() {
+        return dbCount;
+    }
+
+    public static void setDbCount(Integer dbCount) {
+        DBContextHolder.dbCount = dbCount;
+    }
+
+    public static Integer getTbCount() {
+        return tbCount;
+    }
+
+    public static void setTbCount(Integer tbCount) {
+        DBContextHolder.tbCount = tbCount;
+    }
 }
